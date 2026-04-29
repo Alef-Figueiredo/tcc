@@ -1,0 +1,126 @@
+create database Hotel
+use Hotel
+
+drop table Servico_Adicional
+drop table Reserva
+drop table Cliente
+drop table Pix
+drop table Cartao
+drop table Pagamento
+
+create table cliente(
+	CPF int not null,
+	Nome varchar(50) not null,
+	Data_Nascimento date,
+	Telefone int not null,
+	Email varchar(60) not null,
+	constraint idCPF primary key (CPF)
+)
+
+create table Pagamento(
+	id_pagamento int not null,
+	valor decimal(7,2) not null,
+	constraint idPag primary key (id_pagamento),
+	constraint minPag check (0<=valor)
+)
+create table Pix(
+	id_pagamento int primary key not null,
+	QR_code varchar(255) not null,
+	constraint idPIX foreign key (id_pagamento) references Pagamento(id_pagamento)
+)
+create table Cartao(
+	id_pagamento int primary key not null,
+	bandeira varchar(30) not null,
+	tipo varchar(50) not null,
+	numeracao decimal (16,0) not null,
+	CVC decimal  (3,0) not null,
+	constraint idCartao foreign key (id_pagamento) references Pagamento(id_pagamento)
+)
+create table Reserva(
+	id_reserva int not null,
+	tipo_quarto varchar(50) not null,
+	data_entrada datetime,
+	data_saida datetime,
+	CPF int not null,
+	valorRes decimal(5,2),
+	id_pagamento int not null,
+	constraint ResId primary key(id_reserva),
+	constraint ResCPF foreign key(CPF) references Cliente(CPF),
+	constraint ResPag foreign key(id_pagamento) references Pagamento(id_pagamento)
+)
+create table Servico_Adicional(
+	id_servico int not null,
+	tipo_servico varchar(50) not null,
+	status varchar(50) default 'aguardo',
+	descrico varchar(100),
+	valor_extra decimal (5,2),
+	data_hora_solicitacao datetime not null,
+	id_reserva int not null,
+	constraint SerId primary key (id_servico),
+	constraint SerRes foreign key (id_reserva) references Reserva(id_reserva)
+)
+CREATE TRIGGER computaServico
+ON dbo.Servico_Adicional
+AFTER INSERT, UPDATE
+AS
+BEGIN
+    UPDATE r
+    SET r.valorRes = r.valorRes + i.valor_extra
+    FROM dbo.Reserva  r
+    INNER JOIN inserted i
+        ON r.id_reserva = i.id_reserva;
+END;
+GO
+
+CREATE TRIGGER computaReserva
+ON Reserva
+AFTER INSERT, UPDATE
+AS
+BEGIN
+    UPDATE P
+    SET P.valor = i.valorRes
+    FROM dbo.Pagamento  P
+    INNER JOIN inserted  i
+        ON P.id_pagamento = i.id_pagamento;
+END;
+GO
+
+insert into pagamento values
+(1, 0)
+
+insert into cliente values
+(123456789,'Rodolfo','2025-05-06',1126549751,'dolfinho@gmail.com')
+
+insert into reserva values 
+(1000,'deluxe','2025-06-10','2026-08-12',123456789,500,0001)
+
+insert into Servico_Adicional values
+(700,'Alimentacao','sei la man','nao te interessa',50,'2025-12-12',1000)
+
+CREATE VIEW mostraTudoUsuario 
+AS
+SELECT 
+    c.CPF, 
+    c.Nome, 
+    r.tipo_quarto, 
+    r.valorRes - SUM(s.valor_extra) AS ValReserva,   
+    SUM(s.valor_extra) AS Valores_Extra,
+    p.valor AS Valor_Pagamento
+FROM dbo.Pagamento p  
+INNER JOIN dbo.Reserva r
+    ON p.id_pagamento = r.id_pagamento
+INNER JOIN dbo.Servico_Adicional s
+    ON r.id_reserva = s.id_reserva
+INNER JOIN dbo.Cliente c
+    ON r.CPF = c.CPF
+GROUP BY
+    c.CPF,
+    c.Nome,
+    r.tipo_quarto,
+    r.valorRes,
+    p.valor
+
+select * from reserva
+select * from cliente
+select * from pagamento
+select * from mostraTudoUsuario
